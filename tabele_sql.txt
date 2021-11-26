@@ -1,0 +1,178 @@
+create table instaDB.dbo.account(
+username varchar(30) not null UNIQUE ,
+email varchar(30) not null primary key UNIQUE,
+password varchar(30) not null,
+accType varchar not null ,
+bio text null,
+link varchar(30) null,
+pronouns varchar(10) null,
+);
+create table instaDB.dbo.comment (
+commentID int not null primary key identity(1,1),
+commentContent text not null,
+postedOn datetime not null,
+lastEdit datetime not null
+);
+create table instaDB.dbo.post(
+postID int not null primary key identity(1,1),
+postType varchar(20) not null,
+caption text null,
+postedAt datetime not null
+);
+create table instaDB.dbo.chat(
+chatID int not null primary key identity(1,1),
+name varchar(20) not null,
+createdOn datetime not null,
+lastActive datetime null
+);
+create table instaDB.dbo.message (
+messageID int not null primary key identity(1,1),
+messageContent text not null,
+sentAt datetime not null,
+username varchar(30) foreign key references instaDB.dbo.account(username),
+chatID int not null foreign key references instaDB.dbo.chat(chatID),
+);
+
+create table instaDB.dbo.AccountChat (
+username varchar(30) not null,
+chatID int not null,
+dmType varchar(15) not null,
+isMuted bit null,
+lastActive datetime null,
+constraint accChat_PK primary key(username, chatID)
+);
+alter table instaDB.dbo.post 
+add location varchar(30) null; 
+
+alter table instaDB.dbo.AccountChat
+add constraint accChatAcc_FK foreign key (username) references account(username);
+
+alter table instaDB.dbo.comment
+add username varchar(30) not null foreign key references instaDB.dbo.account(username);
+
+alter table instaDB.dbo.post
+add constraint postTypeCHK CHECK (postType='reels' or postType='IGTV' or postType='video' or postType='image');
+
+ALTER TABLE instaDB.dbo.post
+add postPath varchar(40) not null
+
+
+insert into instaDB.dbo.chat values(null,'06-11-2019' , '07-11-2019');
+insert into instaDB.dbo.message values('cao mila', '07-11-2019' ,'predrag', 1);
+insert into instaDB.dbo.comment values('wow dobra slika','2021-05-07', '2021-05-07','predrag',3);
+select * from comment
+
+create view postWithLikes
+as
+select distinct post.postID,post.postType, post.postedAt, post.email,post.postPath, likeCount from post join post_like
+on post.postID=POST_LIKE.postID
+
+
+CREATE PROCEDURE selectAllChats
+AS
+SELECT * FROM instaDB.dbo.chat
+GO;
+EXEC selectAllChats
+
+SELECT COUNT(username) as ['user count'] FROM instaDB.dbo.account
+WHERE username IS NOT NULL
+
+
+CREATE TRIGGER [dbo].[likeCountTrigger]
+    ON [instaDB].[dbo].[POST_LIKE]
+	AFTER INSERT
+AS
+BEGIN
+    UPDATE POST
+	SET likeCount=likeCount+1
+	FROM POST JOIN POST_LIKE
+	ON
+	POST.postID=POST_LIKE.postID 
+	WHERE
+	POST_LIKE.likeID= IDENT_CURRENT('POST_LIKE');
+END;
+
+
+CREATE TRIGGER delUserAndPostsTrigger
+    ON instaDB.dbo.account
+    FOR DELETE
+AS
+    DELETE FROM instaDB.dbo.post
+    WHERE username IN(SELECT deleted.username FROM deleted)
+GO
+
+
+
+CREATE TRIGGER [dbo].[sentMessageAtTrigger]
+    ON [instaDB].[dbo].[message]
+	AFTER INSERT
+AS
+BEGIN
+    UPDATE message
+	SET sentAt=GETDATE()
+	WHERE
+	message.messageID= IDENT_CURRENT('message');
+END;
+
+
+
+
+CREATE TRIGGER [dbo].lastActive
+    ON [instaDB].[dbo].[AccountChat]
+	AFTER INSERT 
+AS
+BEGIN
+    UPDATE AccountChat
+	SET lastActive=GETDATE()
+	FROM AccountChat JOIN message
+	ON
+	message.email=AccountChat.email 
+	join chat
+	on
+	chat.chatID=AccountChat.chatID
+	where message.messageID=IDENT_CURRENT('message')
+END;
+
+
+CREATE FUNCTION popularPosts (
+    @likeTreshold INT
+)
+RETURNS TABLE
+AS
+RETURN
+    SELECT 
+        likeCount
+    FROM
+        POST
+    WHERE
+        likeCount >= @likeTreshold
+
+
+CREATE FUNCTION accountsByPronouns (
+    @pronouns varchar(10)
+)
+RETURNS TABLE
+AS
+RETURN
+    SELECT 
+	*
+	FROM
+        account
+    WHERE
+        pronouns = @pronouns
+
+
+CREATE PROCEDURE sp_InsertAccount 
+				@username varchar(30),
+				@email varchar(30),
+				@password varchar(30),
+				@accType varchar(15),
+				@bio text,
+				@link varchar(30),
+				@pronouns varchar(10)
+AS
+	BEGIN
+		INSERT INTO account
+		VALUES (@username, @email, @password, @accType, @bio, @link, @pronouns)
+	END
+GO
